@@ -101,43 +101,63 @@ def main():
     print(f"下载目录: {download_dir}")
     
     # 5. 重试机制
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        try:
-            # 调用 aria2c 命令下载
-            process = subprocess.run(
-                aria2c_command_base,
-                check=True,
-                text=True,
-                stderr=subprocess.PIPE
-            )
-            # 如果执行到这里，说明下载成功，无异常抛出
-            print("下载完成！")
-            break
+    max_rounds = 10  # 最大重试轮数
+    max_retries = 3  # 每轮最大重试次数
+    
+    for round_num in range(1, max_rounds + 1):
+        print(f"\n开始第 {round_num} 轮下载尝试...")
+        success = False
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                # 调用 aria2c 命令下载
+                process = subprocess.run(
+                    aria2c_command_base,
+                    check=True,
+                    text=True,
+                    stderr=subprocess.PIPE
+                )
+                # 如果执行到这里，说明下载成功，无异常抛出
+                print("下载完成！")
+                success = True
+                break
 
-        except subprocess.CalledProcessError as e:
-            # 当 aria2c 的退出码非 0 时，会抛出此异常
-            print(f"下载过程中出现错误 (第 {attempt} 次重试): {e}")
-            if e.stderr:
-                print(f"错误详情: {e.stderr}")
-            
-            if attempt < max_retries:
-                # 等待一段时间后重试，可根据需要调整等待时长
-                wait_time = 3
-                print(f"等待 {wait_time} 秒后重试...")
-                time.sleep(wait_time)
+            except subprocess.CalledProcessError as e:
+                # 当 aria2c 的退出码非 0 时，会抛出此异常
+                print(f"下载过程中出现错误 (第 {attempt} 次重试): {e}")
+                if e.stderr:
+                    print(f"错误详情: {e.stderr}")
+                
+                if attempt < max_retries:
+                    # 等待一段时间后重试，可根据需要调整等待时长
+                    wait_time = 3
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"第 {round_num} 轮的 {max_retries} 次重试均已失败。")
+            except KeyboardInterrupt:
+                # 用户按下 Ctrl+C 等中断操作
+                print("\n下载已取消。")
+                sys.exit(1)
+            except Exception as e:
+                # 处理除 CalledProcessError、KeyboardInterrupt 以外的其它意外错误
+                print(f"发生未知错误: {e}")
+                break
+
+        if success:
+            print(f"\n文件保存在: {download_dir}")
+            break
+        elif round_num == max_rounds:
+            print(f"\n已完成所有 {max_rounds} 轮尝试，但下载仍然失败。")
+            retry = input("是否要继续尝试下载？(y/n): ").strip().lower()
+            if retry == 'y':
+                main()  # 重新开始整个下载过程
             else:
-                print("已到达最大重试次数，下载失败。")
-        except KeyboardInterrupt:
-            # 用户按下 Ctrl+C 等中断操作
-            print("\n下载已取消。")
-            break
-        except Exception as e:
-            # 处理除 CalledProcessError、KeyboardInterrupt 以外的其它意外错误
-            print(f"发生未知错误: {e}")
-            break
-
-    print(f"\n文件保存在: {download_dir}")
+                print("下载已终止。")
+        else:
+            wait_time = 5
+            print(f"\n等待 {wait_time} 秒后开始下一轮尝试...")
+            time.sleep(wait_time)
 
 if __name__ == "__main__":
     main()
