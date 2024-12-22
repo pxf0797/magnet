@@ -19,8 +19,9 @@ def print_install_instructions():
     当检测到 aria2c 未安装时，根据系统平台给出安装指导。
     """
     if sys.platform == 'darwin':  # macOS
-        print("aria2c 未安装。请使用以下命令安装：")
-        print("  brew install aria2")
+        print("aria2c 未安装。请使用以下命令安装或升级：")
+        print("  brew install aria2        # 如果未安装")
+        print("  brew upgrade aria2        # 如果已安装旧版，进行升级")
     elif sys.platform.startswith('linux'):
         print("aria2c 未安装。请使用以下命令安装：")
         print("  Ubuntu/Debian: sudo apt-get install aria2")
@@ -31,19 +32,14 @@ def print_install_instructions():
         print("请先安装 aria2c。访问 https://aria2.github.io/ 了解详情")
 
 def main():
-    # ------------------------
     # 1. 检查 aria2c 是否安装
-    # ------------------------
     if not check_aria2c_installed():
         print_install_instructions()
         return
 
-    # ------------------------
     # 2. 提示用户输入磁力链接
-    # ------------------------
     magnet_link = input("请输入磁力链接（magnet:?xt=urn:btih:...）: ").strip()
     
-    # 如果用户未输入，直接退出
     if not magnet_link:
         print("未输入磁力链接，退出。")
         return
@@ -53,12 +49,8 @@ def main():
         print("错误：无效的磁力链接格式。磁力链接应以 'magnet:?' 开头。")
         return
 
-    # ---------------------------------------
-    # 3. 设置默认下载目录并确保其存在
-    # ---------------------------------------
-    #   这里使用绝对路径，方便后续定位文件
+    # 3. 设置默认下载目录
     download_dir = os.path.abspath("./download")
-    
     if not os.path.exists(download_dir):
         try:
             os.makedirs(download_dir, exist_ok=True)
@@ -67,9 +59,8 @@ def main():
             print(f"创建下载目录失败: {e}")
             return
 
-    # ---------------------------------------
     # 4. 组装 aria2c 的命令参数
-    # ---------------------------------------
+    #    注意：已删除 --bt-enable-pex=true，以避免旧版本 aria2c 不识别该选项
     #   下面这些参数可以根据自身需求修改：
     #   --seed-time=0                 下载完成后不继续做种
     #   --continue=true               启用断点续传，若已有部分文件则不会重复下载
@@ -80,7 +71,6 @@ def main():
     #   --max-concurrent-downloads    最大并行任务数
     #   --split                       将单个文件分割成多少个片段以并发下载
     #   --bt-max-open-files           同时允许打开的文件数上限
-    
     aria2c_command_base = [
         "aria2c",
         magnet_link,
@@ -90,16 +80,13 @@ def main():
         "--enable-dht=true",
         "--enable-dht6=true",
         "--bt-enable-lpd=true",
-        "--bt-enable-pex=true",
         "--bt-max-open-files=100",
         "--max-concurrent-downloads=5",
         "--max-connection-per-server=5",
         "--split=10",
     ]
 
-    # ---------------------------------------
-    # 5. 添加更多公共 Tracker，提高连接数
-    # ---------------------------------------
+    # 添加更多公共 Tracker，提高连接数
     extra_trackers = [
         "udp://tracker.openbittorrent.com:80",
         "udp://open.demonii.com:1337",
@@ -113,9 +100,7 @@ def main():
     print("开始下载...")
     print(f"下载目录: {download_dir}")
     
-    # ---------------------------------------
-    # 6. 重试机制：允许多次重试，避免临时故障
-    # ---------------------------------------
+    # 5. 重试机制
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
@@ -143,17 +128,15 @@ def main():
                 time.sleep(wait_time)
             else:
                 print("已到达最大重试次数，下载失败。")
-                
         except KeyboardInterrupt:
             # 用户按下 Ctrl+C 等中断操作
             print("\n下载已取消。")
             break
-        
         except Exception as e:
             # 处理除 CalledProcessError、KeyboardInterrupt 以外的其它意外错误
             print(f"发生未知错误: {e}")
             break
-    
+
     print(f"\n文件保存在: {download_dir}")
 
 if __name__ == "__main__":
