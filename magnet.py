@@ -5,6 +5,7 @@ import os
 import subprocess
 import shutil
 import sys
+import time
 
 def check_aria2c_installed():
     """Check if aria2c is installed on the system."""
@@ -14,13 +15,13 @@ def print_install_instructions():
     """Print instructions for installing aria2c."""
     if sys.platform == 'darwin':  # macOS
         print("aria2c 未安装。请使用以下命令安装：")
-        print("brew install aria2")
+        print("  brew install aria2")
     elif sys.platform.startswith('linux'):
         print("aria2c 未安装。请使用以下命令安装：")
-        print("Ubuntu/Debian: sudo apt-get install aria2")
-        print("CentOS/RHEL: sudo yum install aria2")
+        print("  Ubuntu/Debian: sudo apt-get install aria2")
+        print("  CentOS/RHEL:   sudo yum install aria2")
     elif sys.platform == 'win32':
-        print("aria2c 未安装。请访问 https://aria2.github.io/ 下载安装")
+        print("aria2c 未安装。请访问以下链接下载安装：\n  https://aria2.github.io/")
     else:
         print("请先安装 aria2c。访问 https://aria2.github.io/ 了解详情")
 
@@ -55,38 +56,56 @@ def main():
             print(f"创建下载目录失败: {e}")
             return
     
-    # 组装 aria2c 的命令参数
-    aria2c_command = [
+    # 组装 aria2c 的基础命令参数
+    aria2c_command_base = [
         "aria2c",
         magnet_link,
         f"--dir={download_dir}",
         "--seed-time=0",
-        "--continue=true",
+        "--continue=true",  # 如果同名文件存在则断点续传
         "--max-concurrent-downloads=5",
         "--max-connection-per-server=5",
-        "--split=10"  # 单文件最大连接数
+        "--split=10"        # 单文件最大连接数
     ]
-    
+
     print("开始下载...")
     print(f"下载目录: {download_dir}")
     
-    try:
-        # 调用 aria2c 命令下载
-        process = subprocess.run(
-            aria2c_command,
-            check=True,
-            text=True,
-            stderr=subprocess.PIPE
-        )
-        print("下载完成！")
-    except subprocess.CalledProcessError as e:
-        print(f"下载过程中出现错误: {e}")
-        if e.stderr:
-            print(f"错误详情: {e.stderr}")
-    except KeyboardInterrupt:
-        print("\n下载已取消。")
-    except Exception as e:
-        print(f"发生未知错误: {e}")
+    # 设置最大重试次数
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            # 调用 aria2c 命令下载
+            process = subprocess.run(
+                aria2c_command_base,
+                check=True,
+                text=True,
+                stderr=subprocess.PIPE
+            )
+            # 如果能执行到这里，说明下载成功，跳出重试循环
+            print("下载完成！")
+            break
+        except subprocess.CalledProcessError as e:
+            # aria2c 非 0 退出码会触发此异常
+            print(f"下载过程中出现错误 (第 {attempt} 次重试): {e}")
+            if e.stderr:
+                print(f"错误详情: {e.stderr}")
+            
+            if attempt < max_retries:
+                # 等待一段时间再重试（可根据需要调整）
+                wait_time = 3  # 秒
+                print(f"等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+            else:
+                print("已到达最大重试次数，下载失败。")
+        except KeyboardInterrupt:
+            # 用户 Ctrl+C 中断
+            print("\n下载已取消。")
+            break
+        except Exception as e:
+            # 其他未知错误
+            print(f"发生未知错误: {e}")
+            break
     
     print(f"\n文件保存在: {download_dir}")
 
